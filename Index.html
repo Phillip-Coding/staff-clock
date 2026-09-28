@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Staff Clock</title>
+  <style>
+    body {
+      background-color: #1a1d20;
+      color: #ffffff;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    
+    .clock-container {
+      text-align: center;
+      margin-bottom: 25px;
+    }
+    
+    .time-display {
+      font-size: 2.2rem;
+      font-weight: 600;
+      color: #90caf9;
+      letter-spacing: 1px;
+    }
+    
+    .pin-display-container {
+      background-color: #373b3e;
+      width: 280px;
+      height: 60px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 30px;
+      box-shadow: inset 0 2px 5px rgba(0,0,0,0.3);
+    }
+    
+    .pin-display {
+      font-size: 1.8rem;
+      letter-spacing: 8px;
+      font-weight: bold;
+      color: #ffffff;
+    }
+    
+    .keypad-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      width: 280px;
+    }
+    
+    .key-btn {
+      background-color: #64b5f6;
+      color: #0d47a1;
+      border: none;
+      border-radius: 50%;
+      width: 75px;
+      height: 75px;
+      font-size: 1.6rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 0.2s, transform 0.1s;
+      user-select: none;
+    }
+    
+    .key-btn:active {
+      transform: scale(0.95);
+      background-color: #42a5f5;
+    }
+    
+    .key-btn.del {
+      background-color: #e57373;
+      color: #b71c1c;
+      border-radius: 18px;
+    }
+    .key-btn.del:active { background-color: #ef5350; }
+    
+    .key-btn.ok {
+      background-color: #81c784;
+      color: #1b5e20;
+      border-radius: 18px;
+    }
+    .key-btn.ok:active { background-color: #66bb6a; }
+
+    .key-btn.bio {
+      background-color: #ffb74d;
+      color: #e65100;
+      border-radius: 18px;
+    }
+    .key-btn.bio:active { background-color: #ffa726; }
+    
+    .status-panel {
+      margin-top: 25px;
+      width: 280px;
+      min-height: 40px;
+      text-align: center;
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="clock-container">
+    <div id="live-clock" class="time-display">00:00:00 AM</div>
+  </div>
+
+  <div class="pin-display-container">
+    <div id="pin-dots" class="pin-display">----</div>
+  </div>
+
+  <div class="keypad-grid">
+    <button class="key-btn" onclick="pressNum('1')">1</button>
+    <button class="key-btn" onclick="pressNum('2')">2</button>
+    <button class="key-btn" onclick="pressNum('3')">3</button>
+    
+    <button class="key-btn" onclick="pressNum('4')">4</button>
+    <button class="key-btn" onclick="pressNum('5')">5</button>
+    <button class="key-btn" onclick="pressNum('6')">6</button>
+    
+    <button class="key-btn" onclick="pressNum('7')">7</button>
+    <button class="key-btn" onclick="pressNum('8')">8</button>
+    <button class="key-btn" onclick="pressNum('9')">9</button>
+    
+    <button class="key-btn del" onclick="pressDel()">DEL</button>
+    <button class="key-btn" onclick="pressNum('0')">0</button>
+    <button class="key-btn ok" onclick="submitPin()">OK</button>
+  </div>
+
+  <!-- New Biometric Setup Controller Panel below the keypad -->
+  <div style="margin-top: 25px; display: flex; gap: 15px; width: 280px;">
+    <button class="key-btn bio" id="btn-register" style="width: 50%; height: 50px; font-size: 1rem;">🔗 Register</button>
+    <button class="key-btn bio" id="btn-scan" style="width: 50%; height: 50px; font-size: 1rem; background-color: #26a69a; color: #004d40;">🔑 Scan</button>
+  </div>
+
+  <div id="status-text" class="status-panel">Enter your PIN or use biometrics to continue.</div>
+
+  <script>
+
+    // --- IFRAME BREAKOUT BUSTER FOR WEBAUTHN ---
+(function() {
+  if (window.top !== window.self) {
+    // Detects if the web app is inside a Google Frame container
+    const currentUrl = window.location.href;
+    if (currentUrl.indexOf('/exec') !== -1 && currentUrl.indexOf('script.google.com') !== -1) {
+      // Bypasses the iframe restrictions completely
+      window.top.location.href = currentUrl;
+    }
+  }
+})();
+
+    let currentPin = "";
+    const pinDots = document.getElementById("pin-dots");
+    const statusText = document.getElementById("status-text");
+
+    // 1. Live Clock Controller
+    function updateClock() {
+      const now = new Date();
+      let hours = now.getHours();
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12; 
+      document.getElementById("live-clock").innerText = `${String(hours).padStart(2, '0')}:${minutes}:${seconds} ${ampm}`;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // 2. PIN Pad Handlers
+    function pressNum(num) {
+      if (currentPin.length < 4) {
+        currentPin += num;
+        renderPin();
+      }
+    }
+    function pressDel() {
+      currentPin = currentPin.slice(0, -1);
+      renderPin();
+    }
+    function renderPin() {
+      let mask = "";
+      for(let i=0; i<4; i++) {
+        mask += i < currentPin.length ? "*" : "-";
+      }
+      pinDots.innerText = mask;
+    }
+    function submitPin() {
+      if(currentPin.length < 4) {
+        showStatus("❌ Enter a complete 4-digit PIN.", "#e57373");
+        return;
+      }
+      showStatus("🔄 Verifying PIN...", "#90caf9");
+      // This sends the PIN back to your Apps Script Code.gs
+      google.script.run
+        .withSuccessHandler((res) => showStatus(res, "#81c784"))
+        .withFailureHandler((err) => showStatus("❌ Error: " + err, "#e57373"))
+        .verifyEmployeePin(currentPin);
+      
+      currentPin = "";
+      renderPin();
+    }
+
+    function showStatus(msg, color = "#ffffff") {
+      statusText.innerText = msg;
+      statusText.style.color = color;
+    }
+
+    // 3. WebAuthn Fingerprint Hardware Core
+    async function checkHardware() {
+      if (!window.PublicKeyCredential) return false;
+      return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    }
+
+    // --- BIOMETRIC REGISTER BUTTON ---
+    document.getElementById("btn-register").addEventListener("click", async () => {
+      const hardwareOk = await checkHardware();
+      if (!hardwareOk) {
+        showStatus("❌ Biometric hardware unavailable on this browser/device.", "#e57373");
+        return;
+      }
+
+      showStatus("🔄 Place your finger on the sensor to link profile...", "#ffb74d");
+
+      const registerOptions = {
+        challenge: Uint8Array.from("server-challenge-placeholder", c => c.charCodeAt(0)),
+        rp: { name: "Staff Clock System", id: window.location.hostname },
+        user: {
+          id: Uint8Array.from("USER_" + Math.floor(Math.random()*10000), c => c.charCodeAt(0)),
+          name: "staff_member",
+          displayName: "Staff Member"
+        },
+        pubKeyCredParams: [{ type: "public-key", alg: -7 }],
+        authenticatorSelection: { authenticatorAttachment: "platform" },
+        timeout: 60000
+      };
+
+      try {
+        const credential = await navigator.credentials.create({ publicKey: registerOptions });
+        showStatus("✅ Fingerprint Registered successfully! Key ID: " + credential.id.substring(0, 8) + "...", "#81c784");
+        console.log("Credential created:", credential);
+      } catch (err) {
+        showStatus("❌ Registration failed: " + err.message, "#e57373");
+      }
+    });
+
+    // --- BIOMETRIC SCAN BUTTON ---
+    document.getElementById("btn-scan").addEventListener("click", async () => {
+      const hardwareOk = await checkHardware();
+      if (!hardwareOk) {
+        showStatus("❌ Biometric hardware unavailable on this browser/device.", "#e57373");
+        return;
+      }
+
+      showStatus("🔄 Scanning fingerprint...", "#26a69a");
+
+      const authOptions = {
+        challenge: Uint8Array.from("server-challenge-placeholder", c => c.charCodeAt(0)),
+        timeout: 60000,
+        userVerification: "required"
+      };
+
+      try {
+        const assertion = await navigator.credentials.get({ publicKey: authOptions });
+        showStatus("✅ Authenticated via Fingerprint! Clocked-in successfully.", "#81c784");
+        console.log("Assertion verified:", assertion);
+      } catch (err) {
+        showStatus("❌ Scan cancelled or verification failed.", "#e57373");
+      }
+    });
+  </script>
+</body>
+</html>
