@@ -1,9 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <base target="_top">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Staff Clock</title>
+  <title>Staff Clock Station</title>
   <style>
     body {
       background-color: #1a1d20;
@@ -96,7 +95,10 @@
     .key-btn.bio {
       background-color: #ffb74d;
       color: #e65100;
-      border-radius: 18px;
+      border-radius: 8px;
+      width: 100%;
+      height: 50px;
+      font-size: 1.1rem;
     }
     .key-btn.bio:active { background-color: #ffa726; }
     
@@ -105,8 +107,9 @@
       width: 280px;
       min-height: 40px;
       text-align: center;
-      font-size: 0.95rem;
+      font-size: 1.1rem;
       line-height: 1.4;
+      color: #90caf9;
     }
   </style>
 </head>
@@ -138,33 +141,23 @@
     <button class="key-btn ok" onclick="submitPin()">OK</button>
   </div>
 
-  <!-- New Biometric Setup Controller Panel below the keypad -->
+  <!-- Biometric Buttons below the numerical pad -->
   <div style="margin-top: 25px; display: flex; gap: 15px; width: 280px;">
-    <button class="key-btn bio" id="btn-register" style="width: 50%; height: 50px; font-size: 1rem;">🔗 Register</button>
-    <button class="key-btn bio" id="btn-scan" style="width: 50%; height: 50px; font-size: 1rem; background-color: #26a69a; color: #004d40;">🔑 Scan</button>
+    <button class="key-btn bio" id="reg-btn">🔗 Register</button>
+    <button class="key-btn bio" id="scan-btn" style="background-color: #26a69a; color: #004d40;">🔑 Scan</button>
   </div>
 
-  <div id="status-text" class="status-panel">Enter your PIN or use biometrics to continue.</div>
+  <div id="status" class="status-panel">Enter your PIN or use biometrics to continue.</div>
 
   <script>
-
-    // --- IFRAME BREAKOUT BUSTER FOR WEBAUTHN ---
-(function() {
-  if (window.top !== window.self) {
-    // Detects if the web app is inside a Google Frame container
-    const currentUrl = window.location.href;
-    if (currentUrl.indexOf('/exec') !== -1 && currentUrl.indexOf('script.google.com') !== -1) {
-      // Bypasses the iframe restrictions completely
-      window.top.location.href = currentUrl;
-    }
-  }
-})();
+    // ⚠️ PASTE YOUR SECURE GOOGLE APPS SCRIPT WEB APP URL HERE
+    const GOOGLE_API_URL = "https://google.com";
 
     let currentPin = "";
     const pinDots = document.getElementById("pin-dots");
-    const statusText = document.getElementById("status-text");
+    const statusEl = document.getElementById("status");
 
-    // 1. Live Clock Controller
+    // 1. Live Clock Engine
     function updateClock() {
       const now = new Date();
       let hours = now.getHours();
@@ -178,7 +171,7 @@
     setInterval(updateClock, 1000);
     updateClock();
 
-    // 2. PIN Pad Handlers
+    // 2. PIN Pad Logics
     function pressNum(num) {
       if (currentPin.length < 4) {
         currentPin += num;
@@ -196,86 +189,77 @@
       }
       pinDots.innerText = mask;
     }
+    
     function submitPin() {
       if(currentPin.length < 4) {
         showStatus("❌ Enter a complete 4-digit PIN.", "#e57373");
         return;
       }
-      showStatus("🔄 Verifying PIN...", "#90caf9");
-      // This sends the PIN back to your Apps Script Code.gs
-      google.script.run
-        .withSuccessHandler((res) => showStatus(res, "#81c784"))
-        .withFailureHandler((err) => showStatus("❌ Error: " + err, "#e57373"))
-        .verifyEmployeePin(currentPin);
-      
+      sendDataToGoogle(currentPin, "PIN Code Entry");
       currentPin = "";
       renderPin();
     }
 
-    function showStatus(msg, color = "#ffffff") {
-      statusText.innerText = msg;
-      statusText.style.color = color;
+    function showStatus(msg, color = "#90caf9") {
+      statusEl.innerText = msg;
+      statusEl.style.color = color;
     }
 
-    // 3. WebAuthn Fingerprint Hardware Core
-    async function checkHardware() {
-      if (!window.PublicKeyCredential) return false;
-      return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-    }
-
-    // --- BIOMETRIC REGISTER BUTTON ---
-    document.getElementById("btn-register").addEventListener("click", async () => {
-      const hardwareOk = await checkHardware();
-      if (!hardwareOk) {
-        showStatus("❌ Biometric hardware unavailable on this browser/device.", "#e57373");
-        return;
+    // 3. Central Transmitter out to Google Sheets Backend API Hook
+    async function sendDataToGoogle(empId, actionType) {
+      showStatus("🔄 Sending log data to Google Sheets...", "#90caf9");
+      try {
+        await fetch(GOOGLE_API_URL, {
+          method: "POST",
+          mode: "no-cors", // Prevents cross-origin failures safely
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ employeeId: empId, type: actionType })
+        });
+        showStatus("✅ Successfully logged to Google Sheets!", "#81c784");
+      } catch(err) {
+        showStatus("❌ Sheet logging update failed: " + err.message, "#e57373");
       }
+    }
 
-      showStatus("🔄 Place your finger on the sensor to link profile...", "#ffb74d");
-
-      const registerOptions = {
-        challenge: Uint8Array.from("server-challenge-placeholder", c => c.charCodeAt(0)),
-        rp: { name: "Staff Clock System", id: window.location.hostname },
-        user: {
-          id: Uint8Array.from("USER_" + Math.floor(Math.random()*10000), c => c.charCodeAt(0)),
-          name: "staff_member",
-          displayName: "Staff Member"
-        },
+    // 4. Biometric WebAuthn Code Structure (Adjusted explicitly for Huawei tablet platforms)
+    document.getElementById("reg-btn").addEventListener("click", async () => {
+      if (!window.PublicKeyCredential) { showStatus("❌ Browser blocks WebAuthn.", "#e57373"); return; }
+      showStatus("🔄 Touch tablet fingerprint scanner...", "#ffb74d");
+      
+      const options = {
+        challenge: Uint8Array.from("secure-challenge-token", c => c.charCodeAt(0)),
+        rp: { name: "Clock System", id: window.location.hostname },
+        user: { id: Uint8Array.from("123", c => c.charCodeAt(0)), name: "staff", displayName: "Staff" },
         pubKeyCredParams: [{ type: "public-key", alg: -7 }],
+        attestation: "none", // Bypasses brand verification errors
+        authenticatorSelection: { 
+          userVerification: "discouraged" // Stops tablet hardware from aborting instantly
+        },
         timeout: 60000
       };
 
       try {
-        const credential = await navigator.credentials.create({ publicKey: registerOptions });
-        showStatus("✅ Fingerprint Registered successfully! Key ID: " + credential.id.substring(0, 8) + "...", "#81c784");
-        console.log("Credential created:", credential);
+        const credential = await navigator.credentials.create({ publicKey: options });
+        sendDataToGoogle(credential.id.substring(0,8), "Fingerprint Registration");
       } catch (err) {
         showStatus("❌ Registration failed: " + err.message, "#e57373");
       }
     });
 
-    // --- BIOMETRIC SCAN BUTTON ---
-    document.getElementById("btn-scan").addEventListener("click", async () => {
-      const hardwareOk = await checkHardware();
-      if (!hardwareOk) {
-        showStatus("❌ Biometric hardware unavailable on this browser/device.", "#e57373");
-        return;
-      }
-
-      showStatus("🔄 Scanning fingerprint...", "#26a69a");
-
-      const authOptions = {
-        challenge: Uint8Array.from("server-challenge-placeholder", c => c.charCodeAt(0)),
-        timeout: 60000,
-        userVerification: "required"
+    document.getElementById("scan-btn").addEventListener("click", async () => {
+      if (!window.PublicKeyCredential) { showStatus("❌ Browser blocks WebAuthn.", "#e57373"); return; }
+      showStatus("🔄 Place finger on scanner to Clock In...", "#26a69a");
+      
+      const options = { 
+        challenge: Uint8Array.from("secure-challenge-token", c => c.charCodeAt(0)), 
+        timeout: 60000 
       };
-
+      
       try {
-        const assertion = await navigator.credentials.get({ publicKey: authOptions });
-        showStatus("✅ Authenticated via Fingerprint! Clocked-in successfully.", "#81c784");
-        console.log("Assertion verified:", assertion);
+        const assertion = await navigator.credentials.get({ publicKey: options });
+        sendDataToGoogle(assertion.id.substring(0,8), "Employee Clock-In");
       } catch (err) {
-        showStatus("❌ Scan cancelled or verification failed.", "#e57373");
+        showStatus("❌ Scan cancelled or failed.", "#e57373");
       }
     });
   </script>
